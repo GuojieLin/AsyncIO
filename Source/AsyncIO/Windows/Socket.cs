@@ -599,7 +599,6 @@ namespace AsyncIO.Windows
                 m_receivePinnedBuffer.Switch(buffer);
             }
 
-            m_inOverlapped.StartOperation(OperationType.Receive);
 
             m_receiveWSABuffer.Pointer = new IntPtr(m_receivePinnedBuffer.Address + offset);
             m_receiveWSABuffer.Length = count;
@@ -617,7 +616,8 @@ namespace AsyncIO.Windows
                 {
                     throw new SocketException((int)socketError);
                 }
-            }          
+            }
+            m_inOverlapped.StartOperation(OperationType.Receive);
         }
 
        
