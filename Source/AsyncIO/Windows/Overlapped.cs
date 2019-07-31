@@ -63,7 +63,7 @@ namespace AsyncIO.Windows
 
         public bool Success { get; private set; }
 
-        public bool InProgress { get; private set; }
+        public volatile bool InProgress;
 
         public bool Disposed { get; private set; }
 
@@ -75,7 +75,6 @@ namespace AsyncIO.Windows
             Success = false;
             OperationType = operationType;
         }
-
         public static Overlapped CompleteOperation(IntPtr overlappedAddress)
         {
             IntPtr managedOverlapped = Marshal.ReadIntPtr(overlappedAddress, MangerOverlappedOffset);
@@ -83,9 +82,7 @@ namespace AsyncIO.Windows
             GCHandle handle = GCHandle.FromIntPtr(managedOverlapped);
 
             Overlapped overlapped = (Overlapped) handle.Target;
-
-            overlapped.InProgress = false;
-
+            overlapped.Complete();
             if (overlapped.Disposed)
             {
                 overlapped.Free();
@@ -97,6 +94,10 @@ namespace AsyncIO.Windows
             }
 
             return overlapped;          
-        }        
+        }     
+        internal void Complete()
+        {
+            InProgress = false;
+        }
     }
 }

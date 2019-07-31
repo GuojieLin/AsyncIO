@@ -555,7 +555,6 @@ namespace AsyncIO.Windows
             if (buffer == null)
                 throw new ArgumentNullException("buffer");
 
-            int bytesTransferred;
 
             if (m_sendPinnedBuffer == null)
             {
@@ -570,6 +569,8 @@ namespace AsyncIO.Windows
             m_sendWSABuffer.Pointer = new IntPtr(m_sendPinnedBuffer.Address + offset);
             m_sendWSABuffer.Length = count;
 
+            m_outOverlapped.StartOperation(OperationType.Send);
+            int bytesTransferred;
             SocketError socketError = UnsafeMethods.WSASend(Handle, ref m_sendWSABuffer, 1,
               out bytesTransferred, flags, m_outOverlapped.Address, IntPtr.Zero);
 
@@ -578,11 +579,11 @@ namespace AsyncIO.Windows
                 socketError = (SocketError)Marshal.GetLastWin32Error();
 
                 if (socketError != SocketError.IOPending)
-                {                
+                {
+                    m_outOverlapped.Complete();
                     throw new SocketException((int)socketError);
                 }
             }
-            m_outOverlapped.StartOperation(OperationType.Send);
         }
 
         public override void Receive(byte[] buffer, int offset, int count, SocketFlags flags)
@@ -603,8 +604,9 @@ namespace AsyncIO.Windows
             m_receiveWSABuffer.Pointer = new IntPtr(m_receivePinnedBuffer.Address + offset);
             m_receiveWSABuffer.Length = count;
 
-            int bytesTransferred;
+            m_inOverlapped.StartOperation(OperationType.Receive);
 
+            int bytesTransferred;
             SocketError socketError = UnsafeMethods.WSARecv(Handle, ref m_receiveWSABuffer, 1,
               out bytesTransferred, ref flags, m_inOverlapped.Address, IntPtr.Zero);
 
@@ -614,10 +616,10 @@ namespace AsyncIO.Windows
 
                 if (socketError != SocketError.IOPending)
                 {
+                    m_outOverlapped.Complete();
                     throw new SocketException((int)socketError);
                 }
             }
-            m_inOverlapped.StartOperation(OperationType.Receive);
         }
 
        
