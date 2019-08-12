@@ -197,5 +197,70 @@ namespace AsyncIO.Tests
             serverSocket.Dispose();
             clientSocket.Dispose();
         }
+
+
+        [Test]
+        public void JustListen()
+        {
+            CompletionPort completionPort = CompletionPort.Create();
+
+            AsyncSocket listener = AsyncSocket.CreateIPv4Tcp();
+            completionPort.AssociateSocket(listener, listener);
+            listener.Bind(IPAddress.Any, 23456);
+            listener.Listen(2);
+
+            listener.Accept();
+
+            var task = Task.Factory.StartNew(() =>
+            {
+                bool cancel = false;
+
+                while (!cancel)
+                {
+                    CompletionStatus[] completionStatuses = new CompletionStatus[10];
+
+                    int removed;
+
+                    completionPort.GetMultipleQueuedCompletionStatus(-1, completionStatuses, out removed);
+
+                    for (int i = 0; i < removed; i++)
+                    {
+                        AsyncSocket socket = (AsyncSocket)completionStatuses[i].State;
+                        if (completionStatuses[i].OperationType == OperationType.Signal)
+                        {
+                            cancel = true;
+                        }
+                        else if (completionStatuses[i].SocketError == SocketError.Success)
+                        {
+                            if (completionStatuses[i].OperationType == OperationType.Accept)
+                            {
+                                var serverSocket = listener.GetAcceptedSocket();
+                                completionPort.AssociateSocket(serverSocket, serverSocket);
+                                byte[] recv = new byte[1];
+                                serverSocket.Receive(recv);
+                                listener.Accept();
+                            }
+                            else if (completionStatuses[i].OperationType == OperationType.Receive)
+                            {
+                                if (completionStatuses[i].BytesTransferred <= 0)
+                                {
+                                    socket.Dispose();
+                                }
+                            }
+                        }
+                        else
+                        {
+                            socket.Dispose();
+                            listener.Accept();
+                        }
+                    }
+                }
+            });
+            
+            task.Wait();
+
+            completionPort.Dispose();
+            listener.Dispose();
+        }
     }
 }
