@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTitle("AsyncIO")]
 [assembly: AssemblyDescription("Portable completion port library for .Net")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("somdoron")]
+[assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("AsyncIO")]
 [assembly: AssemblyCopyright("Copyright ©  2014")]
 [assembly: AssemblyTrademark("")]

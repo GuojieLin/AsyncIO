@@ -219,40 +219,58 @@ namespace AsyncIO.Tests
                 {
                     CompletionStatus[] completionStatuses = new CompletionStatus[10];
 
-                    int removed;
-
-                    completionPort.GetMultipleQueuedCompletionStatus(-1, completionStatuses, out removed);
-
-                    for (int i = 0; i < removed; i++)
+                    try
                     {
-                        AsyncSocket socket = (AsyncSocket)completionStatuses[i].State;
-                        if (completionStatuses[i].OperationType == OperationType.Signal)
+                        int removed;
+                        completionPort.GetMultipleQueuedCompletionStatus(-1, completionStatuses, out removed);
+
+                        for (int i = 0; i < removed; i++)
                         {
-                            cancel = true;
-                        }
-                        else if (completionStatuses[i].SocketError == SocketError.Success)
-                        {
-                            if (completionStatuses[i].OperationType == OperationType.Accept)
+                            AsyncSocket socket = (AsyncSocket)completionStatuses[i].State;
+                            if (completionStatuses[i].OperationType == OperationType.Signal)
                             {
-                                var serverSocket = listener.GetAcceptedSocket();
-                                completionPort.AssociateSocket(serverSocket, serverSocket);
-                                byte[] recv = new byte[1];
-                                serverSocket.Receive(recv);
-                                listener.Accept();
+                                cancel = true;
                             }
-                            else if (completionStatuses[i].OperationType == OperationType.Receive)
+                            else if (completionStatuses[i].SocketError == SocketError.Success)
                             {
-                                if (completionStatuses[i].BytesTransferred <= 0)
+                                if (completionStatuses[i].OperationType == OperationType.Accept)
                                 {
-                                    socket.Dispose();
+                                    var serverSocket = listener.GetAcceptedSocket();
+                                    completionPort.AssociateSocket(serverSocket, serverSocket);
+                                    byte[] recv = new byte[1];
+                                    try
+                                    {
+                                        serverSocket.Receive(recv);
+                                    }
+                                    catch (SocketException)
+                                    {
+                                        serverSocket.Dispose();
+                                    }
+                                    listener.Accept();
+                                }
+                                else if (completionStatuses[i].OperationType == OperationType.Receive)
+                                {
+                                    if (completionStatuses[i].BytesTransferred <= 0)
+                                    {
+                                        socket.Dispose();
+                                    }
                                 }
                             }
+                            else if (completionStatuses[i].SocketError == SocketError.ConnectionReset ||
+                            completionStatuses[i].SocketError == SocketError.NoBufferSpaceAvailable ||
+                            completionStatuses[i].SocketError == SocketError.TooManyOpenSockets)
+                            {
+                                listener.GetAcceptedSocket().Dispose();
+                                listener.Accept();
+                            }
+                            else
+                            {
+
+                            }
                         }
-                        else
-                        {
-                            socket.Dispose();
-                            listener.Accept();
-                        }
+                    }
+                    catch (Exception exception)
+                    {
                     }
                 }
             });

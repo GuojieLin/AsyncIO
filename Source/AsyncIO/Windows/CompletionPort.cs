@@ -193,6 +193,10 @@ namespace AsyncIO.Windows
                 if (completionKey.Equals(SocketCompletionKey))
                 {
                     // if the overlapped ntstatus is zero we assume success and don't call get overlapped result for optimization
+
+                    //1. 操作正常完成。即使操作已取消，也可能发生这种情况，因为取消请求可能未及时提交以取消该操作。
+                    //2. 操作已取消。GetLastError 函数返回ERROR_OPERATION_ABORTED。
+                    //3. 操作失败，出现另一个错误。GetLastError 函数返回相关的错误代码。
                     if (overlapped.Success)
                     {
                         SocketError socketError = SocketError.Success;
@@ -232,6 +236,8 @@ namespace AsyncIO.Windows
 
                             if (!operationSucceed)
                             {
+                                //2. 操作已取消。GetLastError 函数返回ERROR_OPERATION_ABORTED。
+                                //3. 操作失败，出现另一个错误。GetLastError 函数返回相关的错误代码。
                                 socketError = (SocketError)Marshal.GetLastWin32Error();
                             }
 

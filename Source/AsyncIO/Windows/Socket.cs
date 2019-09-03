@@ -64,21 +64,47 @@ namespace AsyncIO.Windows
         {
             if (!m_disposed)
             {
-                m_disposed = true;                
+                m_disposed = true;         
+                bool cancolIoResult = false;
+                // for Windows XP
+#if NETSTANDARD1_3
+                cancolIoResult = UnsafeMethods.CancelIoEx(Handle, IntPtr.Zero);
+#else
+                if (Environment.OSVersion.Version.Major == 5)
+                    cancolIoResult = UnsafeMethods.CancelIo(Handle);
+                else
+                    cancolIoResult = UnsafeMethods.CancelIoEx(Handle, IntPtr.Zero);
+#endif
+                //CancelIoEx 函数允许您取消调用线程以外的线程中的请求。CancelIo 函数仅取消调用 CancelIo 函数的同一线程中的请求。取消IoEx只取消手柄上的未完成的I/O，它不改变句柄的状态; 这意味着您不能依赖句柄的状态，因为您无法知道操作是成功完成还是已取消。
+
+                //如果指定的文件句柄有任何挂起的 I/O 操作正在进行，则 CancelIoEx 函数将标记它们以取消。大多数类型的操作可以立即取消; 其他操作可以继续完成，然后才实际取消并通知调用方。取消 IoEx 功能不会等待所有已取消的操作完成。
+
+                //如果文件句柄与完成端口关联，则如果成功取消同步操作，则不会将 I/O 完成数据包排队到端口。对于仍然挂起的异步操作，取消操作将排队I/O完成数据包。
+                //正在取消的操作以三种状态之一完成; 您必须检查完成状态以确定完成状态。三种状态是：
+                //1. 操作正常完成。即使操作已取消，也可能发生这种情况，因为取消请求可能未及时提交以取消该操作。
+                //2. 操作已取消。GetLastError 函数返回ERROR_OPERATION_ABORTED。
+                //3. 操作失败，出现另一个错误。GetLastError 函数返回相关的错误代码。
+                //https://docs.microsoft.com/zh-cn/windows/win32/api/ioapiset/nf-ioapiset-cancelioex
+                //https://docs.microsoft.com/zh-cn/windows/win32/fileio/canceling-pending-i-o-operations
+                if (cancolIoResult)
+                {
+                    //如果函数成功，则返回值为非零。已成功请求了指定文件句柄的调用进程发出的所有挂起的 I/O 操作的取消操作。应用程序在完成之前，不得释放或重用与已取消的 I/O 操作关联的 OVERLAPPED 结构。线程可以使用 GetOverlappedResult 函数来确定 I/O 操作本身何时完成。
+                }
+                else
+                {
+                    //如果函数失败，则返回值为 0（零）。要获取扩展的错误信息，请调用 GetLastError 函数。
+                    //如果此函数找不到取消请求，则返回值为 0（零），GetLastError 返回 ERROR_NOT_FOUND(1168)。
+                    m_inOverlapped.Complete();
+                    m_outOverlapped.Complete();
+                    var e = Marshal.GetLastWin32Error();
+                }
 
                 m_inOverlapped.Dispose();
                 m_outOverlapped.Dispose();
+                //应用程序不应假定在关闭套接字返回时，套接字上的任何未完成的 I/O 操作都将保证完成。关闭套接字函数将在未完成的 I/O 操作上启动取消，但这并不意味着应用程序将在关闭套接功能返回时收到这些 I/O 操作的 I/O 完成。因此，在 I/O 请求确实完成之前，应用程序不应清除未完成 I/O 请求引用的任何资源（例如 WSAOVERLAPPED 结构）。
 
-                // for Windows XP
-#if NETSTANDARD1_3
-                UnsafeMethods.CancelIoEx(Handle, IntPtr.Zero);
-#else
-                if (Environment.OSVersion.Version.Major == 5)
-                    UnsafeMethods.CancelIo(Handle);
-                else
-                    UnsafeMethods.CancelIoEx(Handle, IntPtr.Zero);
-#endif
-
+                //应用程序应始终具有匹配的调用，以关闭每次成功调用套接字的套接字，以便将任何套接字资源返回到系统。
+                //TODO:关闭socket时可能导致完成通知不会通知。此时如何处理，使用一个定时程序定时清理吗
                 int error = UnsafeMethods.closesocket(Handle);
 
                 if (error != 0)
@@ -616,7 +642,7 @@ namespace AsyncIO.Windows
 
                 if (socketError != SocketError.IOPending)
                 {
-                    m_outOverlapped.Complete();
+                    m_inOverlapped.Complete();
                     throw new SocketException((int)socketError);
                 }
             }
