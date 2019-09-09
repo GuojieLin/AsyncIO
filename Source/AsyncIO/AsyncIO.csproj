@@ -21,7 +21,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <IncludeSource>true</IncludeSource>
-    <Version>0.1.29.3</Version>
+    <Version>0.1.29.4</Version>
     <PackageReleaseNotes>fix the socket was reset when receive data,the overlapped not free</PackageReleaseNotes>
     <Authors>somdoron</Authors>
   </PropertyGroup>
